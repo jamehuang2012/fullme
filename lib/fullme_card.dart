@@ -1,15 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 
 class fullme_card extends StatefulWidget {
-  final String imageUrl;
+  final List<String?> imageUrls;
   final String id;
   final String name;
   final String taskName;
   const fullme_card({
     required this.id,
     required this.name,
-    required this.imageUrl,
+    required this.imageUrls,
     required this.taskName,
     Key? key,
   }):  super(key: key);
@@ -20,7 +23,9 @@ class fullme_card extends StatefulWidget {
 
 class _fullmeCardState extends State<fullme_card> {
 
+
   Widget _buildCardContent(BuildContext context) {
+
     return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 20),
       child: Column(
@@ -65,21 +70,20 @@ class _fullmeCardState extends State<fullme_card> {
             ],
           ),
           const SizedBox(height: 8),
-          Container(
-            alignment: Alignment.center,
-            child:  Image.asset(
-              'assets/images/b2evo-1.jpg', // Replace with your image asset path
-              //  height: 50,
-            ),
+          Column(
+            children: widget.imageUrls!.map((imageUrl) {
+              print(imageUrl);
+              return Container(
+                alignment: Alignment.center,
+                child: Image.file(
+                  File(imageUrl!),
+                  fit: BoxFit.cover,
+                ),
+              );
+            }).toList(),
           ),
           const SizedBox(height: 4),
-          Container(
-            alignment: Alignment.center,
-            child:  Image.asset(
-              'assets/images/b2evo-2.jpg', // Replace with your image asset path
-              //  height: 50,
-            ),
-          ),
+
         ],
       ),
     );

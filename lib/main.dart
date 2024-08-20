@@ -1,14 +1,36 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:fullme/network/api_service.dart';
 import 'package:fullme/theme/app_color.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'config.dart';
+import 'data/fullme_data.dart';
 import 'fullme_card.dart';
 
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:html/parser.dart' as parser;
+import 'package:mqtt_client/mqtt_client.dart';
+import 'package:mqtt_client/mqtt_server_client.dart';
+import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
 
+import 'network/ImageDownloader.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  await ConfigManager().init();
+  //runApp(const MyApp());
+  runApp (
+
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => null),
+        ],
+        child: const MyApp())
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -68,10 +90,13 @@ class fullme extends StatefulWidget {
 }
 
 class _fullmeState extends State<fullme> {
-  late List<fullme_card> items;
+  late List<FullmeData> items;
   late ScrollController _scrollController;
 
-  late int testId = 1;
+  late MqttServerClient client;
+  final String clientIdentifier = 'flutter_client';
+  Map<String, dynamic>? imageInfo;
+  late Timer _timer;
 
   @override
   void dispose() {
@@ -84,15 +109,115 @@ class _fullmeState extends State<fullme> {
       super.initState();
       _scrollController = ScrollController();
 
-      items = [
-        fullme_card(id: "pixy$testId",name: "寒冰",taskName: "Fullme",imageUrl: "123",),
+
+      client = MqttServerClient(ConfigManager().getUrl(), clientIdentifier);
+      client.logging(on: true);
+      client.onConnected = onConnected;
+      client.onSubscribed = onSubscribed;
+
+      client.keepAlivePeriod = 60;
+
+      final connMessage = MqttConnectMessage()
+          .withClientIdentifier('mqtt_123')
+          .withWillTopic('willtopic')
+          .withWillMessage('Will message')
+          .startClean()
+          .withWillQos(MqttQos.atLeastOnce);
+
+      client.connectionMessage = connMessage;
+      client.connect();
 
 
-      ];
+      _timer = Timer.periodic(Duration(seconds: 15), (Timer timer) {
+        if (client.connectionStatus!.state == MqttConnectionState.disconnected) {
+          client.connect();
+        }
+      });
 
-      testId ++;
+      items = [];
+  }
 
 
+  void onConnected() {
+    print('Connected to the broker');
+    client.subscribe('topic/fullme', MqttQos.atMostOnce);
+    publishMessage('Hello from Flutter');
+
+    client.updates?.listen((List<MqttReceivedMessage<MqttMessage>>? c) {
+      final MqttPublishMessage recMess = c![0].payload as MqttPublishMessage;
+      final String? pt =
+      MqttPublishPayload.bytesToStringAsString(recMess.payload.message!);
+      print(
+          'EXAMPLE::Change notification:: topic is <${c[0].topic}>, payload is <-- $pt -->');
+
+      try {
+        Map<String, dynamic> parsedJson = json.decode(pt!);
+
+
+        // Get the UTF-8 encoded name
+        String encodedName = parsedJson['name'];
+
+        // Decode the UTF-8 encoded name
+        String decodedName = utf8.decode(encodedName.runes.toList());
+
+        // Replace the encoded name with the decoded name in the parsed JSON
+        parsedJson['name'] = decodedName;
+
+        print(decodedName);
+
+        // Convert the parsed JSON back to a JSON string
+        String modifiedJsonString = json.encode(parsedJson);
+
+
+        imageInfo = parsedJson;
+
+        if (kDebugMode) {
+          print(modifiedJsonString);
+        } // Output: {"text":"tinttin { }"}
+
+        setState(() {
+          // Update and download image
+          print("uploade");
+
+
+
+          ApiService apiService = new ApiService();
+          apiService.fetchImageUrls(parsedJson['url'],parsedJson['image_no'],count: 2).then ((value) {
+            print(value);
+
+            _addNewItem(FullmeData(id: parsedJson['id'], name: parsedJson['name'], task: parsedJson['task'], filePaths: value, imageNo: parsedJson['image_no']));
+
+          });
+
+        });
+      } catch (e) {
+        print('Error: $e');
+      }
+    });
+
+  }
+
+  void onSubscribed(String topic) {
+    print('Subscribed to topic: $topic');
+  }
+
+  void publishMessage(String message) {
+    final builder = MqttClientPayloadBuilder();
+    builder.addString(message);
+    client.publishMessage('topic/fullme', MqttQos.exactlyOnce, builder.payload!);
+  }
+
+  void onMessage(String topic, MqttReceivedMessage message) {
+    final String payload = MqttPublishPayload.bytesToStringAsString(message.payload.message);
+    print('Message received: topic=$topic, payload=$payload');
+
+    String jsonString = json.encode(payload);
+
+    print(jsonString); // Output: {"text":"tinttin { }"}
+
+    setState(() {
+
+    });
   }
 
   void _scrollToBottom() {
@@ -105,17 +230,14 @@ class _fullmeState extends State<fullme> {
     }
   }
 
-  void _addNewItem() {
+  void _addNewItem(FullmeData fullme) {
     setState(() {
       items.add(
-        fullme_card(
-          id: "pixy$testId",
-          name: "寒冰",
-          taskName: "破阵2",
-          imageUrl: "123",
-        ),
+          fullme
       );
-      testId ++;
+
+      print(fullme.filePaths);
+      print(items[0].filePaths);
       if (items.length > 5) {
         items.removeAt(0);
       }
@@ -148,10 +270,10 @@ class _fullmeState extends State<fullme> {
                 //     return SettingsDialog();
                 //   },
                 // );
-
-                _addNewItem();
-
-
+                List <String?> filePaths = [];
+                filePaths.add('C:\\temp\\pku\\172417425783104\\b2evo_captcha_D24D78CFEFE1B4EA44DCD04F77673866.jpg');
+                filePaths.add('C:\\temp\\pku\\172417425783104\\b2evo_captcha_D24D78CFEFE1B4EA44DCD04F77673866.jpg');
+                _addNewItem(FullmeData(id: 'pixy', name: '寒冰', task: "破阵", filePaths: filePaths, imageNo: '12345'));
               },
             ),
 
@@ -171,7 +293,7 @@ class _fullmeState extends State<fullme> {
           print(items[index].id);
           return Padding(
             padding: const EdgeInsets.all(8.0),
-            child: fullme_card(id: items[index].id,name:items[index].name,taskName: items[index].taskName,imageUrl: items[index].imageUrl), // Replace this with your fullme_card widget
+            child: fullme_card(id: items[index].id,name:items[index].name,taskName: items[index].task,imageUrls: items[index].filePaths,), // Replace this with your fullme_card widget
           );
         },
       ),

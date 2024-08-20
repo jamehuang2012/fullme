@@ -3,6 +3,8 @@ import 'package:fullme/theme/app_color.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'fullme_card.dart';
+
 
 
 void main() {
@@ -66,6 +68,63 @@ class fullme extends StatefulWidget {
 }
 
 class _fullmeState extends State<fullme> {
+  late List<fullme_card> items;
+  late ScrollController _scrollController;
+
+  late int testId = 1;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void initState() {
+
+      super.initState();
+      _scrollController = ScrollController();
+
+      items = [
+        fullme_card(id: "pixy$testId",name: "寒冰",taskName: "Fullme",imageUrl: "123",),
+
+
+      ];
+
+      testId ++;
+
+
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _addNewItem() {
+    setState(() {
+      items.add(
+        fullme_card(
+          id: "pixy$testId",
+          name: "寒冰",
+          taskName: "破阵2",
+          imageUrl: "123",
+        ),
+      );
+      testId ++;
+      if (items.length > 5) {
+        items.removeAt(0);
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom();
+      });
+
+    });
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -73,36 +132,49 @@ class _fullmeState extends State<fullme> {
         centerTitle: false,
         title: Row(
           children: [
-            Image.asset(
-              'assets/images/logo.jpg', // Replace with your image asset path
-              height: 50,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Container(
-                constraints: BoxConstraints(minWidth: 250),
-                child: const Text('Fullme'),
+              Expanded(child: Image.asset(
+                'assets/images/logo.jpg', // Replace with your image asset path
+              //  height: 50,
               ),
             ),
+
+            IconButton(
+              icon: const Icon(Icons.settings,color: Colors.black45,),
+              onPressed: () {
+                // Handle settings button press
+                // showDialog(
+                //   context: context,
+                //   builder: (BuildContext context) {
+                //     return SettingsDialog();
+                //   },
+                // );
+
+                _addNewItem();
+
+
+              },
+            ),
+
           ],
         ),
-        elevation: 4,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              // Handle settings button press
-              showDialog(
-                context: context,
-                builder: (BuildContext context) {
-                  return SettingsDialog();
-                },
-              );
 
-            },
-          ),
+      ),
+      body: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child:ListView.builder(
+          controller: _scrollController,
+          itemCount: items.length > 5 ? 5 : items.length, // Show up to 10 items
+          itemBuilder: (context, index) {
+          // Calculate the index in the original list to get the latest items
 
-        ],
+
+          print(items[index].id);
+          return Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: fullme_card(id: items[index].id,name:items[index].name,taskName: items[index].taskName,imageUrl: items[index].imageUrl), // Replace this with your fullme_card widget
+          );
+        },
+      ),
       )
 
     );

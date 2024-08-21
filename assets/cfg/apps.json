@@ -1,0 +1,7 @@
+{
+  "url": "51.222.84.239",
+  "port": 1883,
+  "topic": "topic/fullme",
+  "id": "pixy",
+  "image": 2
+}

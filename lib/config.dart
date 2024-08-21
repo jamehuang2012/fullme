@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ConfigManager {
@@ -12,8 +13,34 @@ class ConfigManager {
   SharedPreferences? _prefs;
 
   Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
+    if (kDebugMode) {
+      print ("init() parameters");
+    }
+
+    try {
+      _prefs = await SharedPreferences.getInstance();
+      bool? hasReadAlready = _prefs?.getBool("init");
+
+      if (hasReadAlready == null || hasReadAlready == false) {
+        if (kDebugMode) {
+          print ("set parameters");
+        }
+        _prefs?.setBool("init", true);
+        setUrl("51.222.84.239");
+        setPort("1883");
+      }  else {
+        if (kDebugMode) {
+          print ("load parameters");
+        }
+      }
+
+    } catch (e) {
+        if (kDebugMode) {
+          print (e);
+        }
+    }
   }
+
 
   // Setters
   Future<void> setUrl(String url) async {
@@ -46,6 +73,7 @@ class ConfigManager {
 
   // Getters
   String getUrl() {
+
     return _prefs?.getString('url') ?? '';
   }
 

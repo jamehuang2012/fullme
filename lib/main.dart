@@ -10,27 +10,19 @@ import 'config.dart';
 import 'data/fullme_data.dart';
 import 'fullme_card.dart';
 
-import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:html/parser.dart' as parser;
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
-
-import 'network/ImageDownloader.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 void main() async {
-  await ConfigManager().init();
-  //runApp(const MyApp());
-  runApp (
+  WidgetsFlutterBinding.ensureInitialized();
 
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => null),
-        ],
-        child: const MyApp())
-  );
+  await ConfigManager().init();
+  runApp(const MyApp());
+
 }
 
 class MyApp extends StatelessWidget {
@@ -101,6 +93,7 @@ class _fullmeState extends State<fullme> {
   @override
   void dispose() {
     _scrollController.dispose();
+    WakelockPlus.disable();
     super.dispose();
   }
 
@@ -109,8 +102,10 @@ class _fullmeState extends State<fullme> {
       super.initState();
       _scrollController = ScrollController();
 
+      var url = ConfigManager().getUrl();
+      print("url-->$url");
 
-      client = MqttServerClient(ConfigManager().getUrl(), clientIdentifier);
+      client = MqttServerClient(url, clientIdentifier);
       client.logging(on: true);
       client.onConnected = onConnected;
       client.onSubscribed = onSubscribed;
@@ -135,20 +130,25 @@ class _fullmeState extends State<fullme> {
       });
 
       items = [];
+
+      WakelockPlus.enable();
   }
 
 
   void onConnected() {
     print('Connected to the broker');
-    client.subscribe('topic/fullme', MqttQos.atMostOnce);
-    publishMessage('Hello from Flutter');
+
+    var topic = ConfigManager().getTopic();
+    print(topic);
+    client.subscribe(topic, MqttQos.atMostOnce);
+    //publishMessage('Hello from Flutter');
 
     client.updates?.listen((List<MqttReceivedMessage<MqttMessage>>? c) {
       final MqttPublishMessage recMess = c![0].payload as MqttPublishMessage;
       final String? pt =
       MqttPublishPayload.bytesToStringAsString(recMess.payload.message!);
       print(
-          'EXAMPLE::Change notification:: topic is <${c[0].topic}>, payload is <-- $pt -->');
+          'fullme::Change notification:: topic is <${c[0].topic}>, payload is <-- $pt -->');
 
       try {
         Map<String, dynamic> parsedJson = json.decode(pt!);
@@ -219,15 +219,16 @@ class _fullmeState extends State<fullme> {
 
     });
   }
-
   void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   void _addNewItem(FullmeData fullme) {
@@ -261,19 +262,16 @@ class _fullmeState extends State<fullme> {
             ),
 
             IconButton(
-              icon: const Icon(Icons.settings,color: Colors.black45,),
+              icon: const Icon(Icons.settings,color: Colors.black87,size: 25,),
               onPressed: () {
                 // Handle settings button press
-                // showDialog(
-                //   context: context,
-                //   builder: (BuildContext context) {
-                //     return SettingsDialog();
-                //   },
-                // );
-                List <String?> filePaths = [];
-                filePaths.add('C:\\temp\\pku\\172417425783104\\b2evo_captcha_D24D78CFEFE1B4EA44DCD04F77673866.jpg');
-                filePaths.add('C:\\temp\\pku\\172417425783104\\b2evo_captcha_D24D78CFEFE1B4EA44DCD04F77673866.jpg');
-                _addNewItem(FullmeData(id: 'pixy', name: '寒冰', task: "破阵", filePaths: filePaths, imageNo: '12345'));
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return SettingsDialog();
+                  },
+                );
+
               },
             ),
 
